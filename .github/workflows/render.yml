@@ -1,0 +1,75 @@
+name: render
+
+# Every 10 minutes, matching the GOES full-disk cadence.
+#
+# Two honest caveats about GitHub's scheduler, both survivable for a weather
+# frame but worth knowing up front:
+#   1. Cron here is best-effort. Under load, runs drift 5-20 minutes late.
+#      You are not getting a metronome; you are getting "roughly every
+#      10 minutes, usually."
+#   2. GitHub disables scheduled workflows after 60 days with no repository
+#      activity, and emails you first. Pushing any commit resets the clock.
+#
+# The repo must be PUBLIC. Public repos get unlimited Actions minutes; a
+# private repo would burn ~4,300 min/month against a 2,000 min free allowance.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# A late run must never overlap the next one.
+concurrency:
+  group: render
+  cancel-in-progress: true
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install --disable-pip-version-check pillow numpy requests
+
+      - name: Render frame from GIBS
+        run: python3 goes_epaper.py --once --outdir out
+
+      - name: Publish to gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # The device only needs latest.bin + latest.sha; the 5.8 MB BMP is
+          # for manual SenseCraft uploads. Drop it so we aren't re-pushing it
+          # 144 times a day. Delete this line if you want it published.
+          rm -f out/latest.bmp
+          touch out/.nojekyll
+          cd out
+          # Orphan branch, force-pushed each run. The published tree is always
+          # exactly one commit, so 144 frames a day never accumulate history.
+          git init -q
+          git checkout -q -b gh-pages
+          git add -A
+          git -c user.email=actions@github.com \
+              -c user.name="GOES renderer" \
+              commit -qm "frame $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          git push -qf \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            gh-pages
+
+      - name: Show published URLs
+        run: |
+          owner="${GITHUB_REPOSITORY%%/*}"
+          repo="${GITHUB_REPOSITORY##*/}"
+          echo "https://${owner}.github.io/${repo}/latest.bin"
+          echo "https://${owner}.github.io/${repo}/latest.sha"
+          echo "https://${owner}.github.io/${repo}/latest_preview.png"
