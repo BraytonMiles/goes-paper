@@ -52,14 +52,19 @@ PANEL_W, PANEL_H = 1600, 1200          # EE02 13.3" landscape (native 1200x1600)
 # device snaps to the intended ink with zero ambiguity.
 #
 # Order defines the palette index. Adjust INDEX_CODE if your firmware disagrees.
+# The panel-nibble codes below are the *logical* codes the Seeed_GFX v2
+# T133A01 driver expects: its colorGet() remaps each nibble to the panel's
+# real hardware code at refresh time. (The original Seeed_GFX library wanted
+# the raw hardware codes 0x0/0x1/0x2/0x3/0x5/0x6 instead — swap back if you
+# ever revert the firmware to that library.)
 PALETTE = [
     # name      dither RGB (measured-ish)   output RGB (canonical)   panel nibble
-    ("black",   (  0,   0,   0),            (  0,   0,   0),         0x0),
-    ("white",   (255, 255, 255),            (255, 255, 255),         0x1),
-    ("yellow",  (233, 200,  50),            (255, 255,   0),         0x2),
-    ("red",     (180,  50,  45),            (255,   0,   0),         0x3),
-    ("blue",    ( 55,  70, 150),            (  0,   0, 255),         0x5),
-    ("green",   ( 70, 125,  70),            (  0, 255,   0),         0x6),
+    ("black",   (  0,   0,   0),            (  0,   0,   0),         0x0F),
+    ("white",   (255, 255, 255),            (255, 255, 255),         0x00),
+    ("yellow",  (233, 200,  50),            (255, 255,   0),         0x0B),
+    ("red",     (180,  50,  45),            (255,   0,   0),         0x06),
+    ("blue",    ( 55,  70, 150),            (  0,   0, 255),         0x0D),
+    ("green",   ( 70, 125,  70),            (  0, 255,   0),         0x02),
 ]
 DITHER_RGB = [p[1] for p in PALETTE]
 OUTPUT_RGB = [p[2] for p in PALETTE]
