@@ -1,0 +1,7 @@
+out/
+__pycache__/
+*.pyc
+.venv/
+
+# WiFi credentials — never commit. Use secrets.h.example as the template.
+secrets.h

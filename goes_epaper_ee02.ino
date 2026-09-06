@@ -13,25 +13,28 @@
  * Board:  Tools -> Board  -> "XIAO ESP32S3 Plus"
  *         Tools -> PSRAM  -> enabled           (required: the buffer is 940 KB)
  *
- * Alongside this .ino create driver.h containing exactly:
- *
- *     #define BOARD_SCREEN_COMBO 510
- *     #define USE_XIAO_EPAPER_DISPLAY_BOARD_EE02
+ * Library: Seeed_GFX v2 (github.com/Seeed-Studio/Seeed_GFX2). The board and
+ * panel are selected as template parameters to begin() below — no driver.h.
  */
 
-#include "driver.h"
 #include <Seeed_GFX.h>
+#include "board/boards/XIAO_EPaper_Boards.h"
+#include "panel/configs/Seeed_Panel_Configs.h"
+#include "driver/epaper/Driver_T133A01.h"
+#include "panel/Panel_EPaper.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <esp_sleep.h>
 
 // ---------------------------------------------------------------- config ---
-static const char *WIFI_SSID = "YOUR_SSID";
-static const char *WIFI_PASS = "YOUR_PASSWORD";
+// WiFi credentials live in secrets.h, which is gitignored so it never lands
+// in the public repo. Copy secrets.h.example to secrets.h and fill in your
+// network. secrets.h must sit next to this .ino for the compile to find it.
+#include "secrets.h"   // defines WIFI_SSID and WIFI_PASS
 
 // GitHub Pages (free path) — replace with your own:
-static const char *HOST = "https://YOUR_USER.github.io/YOUR_REPO";
+static const char *HOST = "https://braytonmiles.github.io/goes-paper";
 // Self-hosted alternative:
 // static const char *HOST = "http://192.168.1.50:8080";
 
@@ -40,7 +43,7 @@ static const int      PANEL_W = 1600;
 static const int      PANEL_H = 1200;
 static const size_t   FRAME_BYTES = (size_t)PANEL_W * PANEL_H / 2;   // 4bpp
 
-EPaper epaper;
+Seeed_GFX display;
 
 // Survives deep sleep, so redundant refreshes are skipped across wakes.
 RTC_DATA_ATTR char lastSha[24] = {0};
@@ -166,14 +169,19 @@ void setup() {
 
   if (!fetchFrame(buf)) { free(buf); sleepAgain(); }
 
-  epaper.begin();
-  epaper.setRotation(1);                 // landscape 1600x1200
+  if (!display.begin<Board_XIAO_ePaper_EE02,
+                     Config_Seeed_ePaper_13inch3_Colorful_T133A01>()) {
+    Serial.println(display.lastResult().message);
+    free(buf);
+    sleepAgain();
+  }
+  display.setRotation(1);                // landscape 1600x1200
 
-  // The one line to sanity-check against your library version. Seeed_GFX takes
-  // the packed 4bpp six-colour buffer exactly as the renderer emits it; if your
-  // build names this differently, this is the only call that changes.
-  epaper.pushImage(0, 0, PANEL_W, PANEL_H, buf);
-  epaper.update();                       // ~20 s full-colour refresh
+  // Seeed_GFX v2 takes the packed 4bpp six-colour buffer exactly as the
+  // renderer emits it (two pixels per byte). dataInProgmem=false because our
+  // buffer lives in PSRAM, not memory-mapped flash.
+  display.pushImage4BPP(0, 0, PANEL_W, PANEL_H, buf, false);
+  display.refresh();                     // ~20 s full-colour refresh
 
   free(buf);
   strncpy(lastSha, sha.c_str(), sizeof(lastSha) - 1);
